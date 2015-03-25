@@ -1,0 +1,8 @@
+.DS_Store
+ailp/*
+*~
+*.swp
+ailp.pl
+readme.txt
+oscar/library/
+oscar/.DS_Store
