@@ -163,8 +163,25 @@ random_link(A,L):-
 %%% Your solution goes here
 
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
+% Instantiates the full list of actors and then calls the loop query to repeatedly trim the list until only one actor remains
 find_identity(A):-
-	A='Not yet implemented'.
+  findall(Ac,actor(Ac),Lst),
+	find_identity_loop(A,Lst).
+
+% Repeatedly asks for a new link L, finds all actors that have that link, and intersects that list of actors with the current actor list
+% So that any actor that does not have L is removed from As
+% When the list of actors is reduced to just a single actor, then that is the identity and stop searching.
+find_identity_loop(I,[I]):- !.
+find_identity_loop(I,As):-
+  agent_ask_oracle(oscar,o(1),link,L),
+  list_actors_with_link(L,Xs),
+  intersection(Xs,As,Lst),
+  find_identity_loop(I,Lst).
+
+% Xs is a list of unique actors that have the link L on their page.
+list_actors_with_link(L,Xs):-
+  findall(A,(actor(A),wp(A,WT),wt_link(WT,L)),As),
+  sort(As,Xs).
 
 
 %%% Testing
