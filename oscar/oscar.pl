@@ -10,7 +10,8 @@ candidate_number(17655).
 
 solve_task(Task,Cost):-
 	agent_current_position(oscar,P),
-	solve_task_bt(Task,[c(0,P),P],0,R,Cost,_NewPos),!,	% prune choice point for efficiency
+	writeln(P),
+	breadth_first(Task,[[c(0,P),P]],[],[P],R,Cost,_NewPos),!,	% prune choice point for efficiency
 	reverse(R,[_Init|Path]),
 	agent_do_moves(oscar,Path).
 
@@ -24,8 +25,26 @@ solve_task_bt(Task,Current,D,RR,Cost,NewPos) :-
 	D1 is D+1,
 	F1 is F+C,
 	solve_task_bt(Task,[c(F1,P1),R|RPath],D1,RR,Cost,NewPos). % backtracking search
-
-
+% List of points, with their associated min costs and it's path
+% [c(Cost, Point, PrevPointInPath)
+breadth_first(Task, [H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos) :-
+	achieved(Task, H, RPath, Cost, NewPos).
+breadth_first(Task, [], Lst2, Visited, RPath, Cost, NewPos) :-
+	breadth_first(Task, Lst2, [], Visited, RPath, Cost, NewPos).
+breadth_first(Task, [Current|Lst1], Lst2, Visited, RR, Cost, NewPos) :-
+	Current = [c(F,Pos)|RPath],
+	(  setof([R,C], (search(Pos,R,R,C), \+ memberchk(R, Visited)), Adjs) ->
+		appendAll(Lst2, Adjs, Current, Visited, NewLst2, NewVisited)
+	;	appendAll(Lst2, [], Current, Visited, NewLst2, NewVisited)
+	),
+	breadth_first(Task, Lst1, NewLst2, NewVisited, RR, Cost, NewPos).
+appendAll(Lst, [], Current, Visited, Lst, Visited).
+appendAll(Lst, [A|Adjs], Current, Visited, NewLst, NewVisited) :-
+	Current = [c(F,_)|RPath],
+	A = [Point, C],
+	F1 is F+C,
+	appendAll([[c(F1,Point),Point|RPath]|Lst], Adjs, Current, [Point|Visited], NewLst, NewVisited).
+	
 achieved(go(Exit),Current,RPath,Cost,NewPos) :-
 	Current = [c(Cost,NewPos)|RPath],
 	( Exit=none -> true

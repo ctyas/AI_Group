@@ -149,6 +149,7 @@ link('Screen Actors Guild Award').
 link('The Big Lebowski').
 %link('The New York Times').
 link('Tony Award').
+link('Los Angeles').
 
 random_actor(A):-
 	findall(A,actor(A),L),
