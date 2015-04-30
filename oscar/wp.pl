@@ -183,16 +183,15 @@ find_identity_loop(OV,Actors,Identity,QCost):-
 		list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
 		intersection(Xs,Actors,Lst),!,
 		find_identity_loop([Oracle|OV],Lst,Identity,QCost)
-	% If there is oracle->charge combo, see if any accessible oracles exist
-	; find_nearest_oracle(OV,QCost,cost(Cost),R,Oracle), Cost =< E ->
-		% If they do, then try to go to a charging station first so we don't run out of energy.
-		% If we can't reach a charging station, just attempt to get as many links as possible before running out of energy
+	% If there is not an oracle->charge combo, see if any accessible oracles exist.
+	% If so try to charge - if no charge just get as many links as poss before running out of energy
+	; find_nearest_oracle(OV,QCost,cost(Cost),R,Oracle) ->
 		( agent_current_position(oscar,P), find_nearest_charging(P,cost(CharCost),CharR,Ch), CharCost =< E ->
 			reverse(CharR,[_Init|Path]),
 			agent_do_moves(oscar,Path),
 			agent_topup_energy(oscar,c(Ch)),!,
 			find_identity_loop(OV,Actors,Identity,QCost)
-		; otherwise ->
+		; Cost =< E  ->
 			reverse(R,[_Init|Path]),
 			agent_do_moves(oscar,Path),
 			agent_ask_oracle(oscar,o(Oracle),link,L),
@@ -205,7 +204,18 @@ find_identity_loop(OV,Actors,Identity,QCost):-
 		!,
 		guesstimate(Actors,Identity)
 	).
-	
+
+	%agent_current_energy(oscar,E),
+	%( find_nearest_oracle(OV,QCost,cost(Cost),[ORHead|OR],Oracle) ->
+%		( find_nearest_charging(ORHead, CCost, [CRHead|CR],Ch) ->
+%			reverse([ORHead|OR],[_Init|Path]),
+%			agent_do_moves(oscar,Path),
+%			agent_ask_oracle(oscar,o(Oracle),link,L),
+%			list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
+%			intersection(Xs,Actors,Lst),!,
+%			find_identity_loop([Oracle|OV],Lst,Identity,QCost)
+%		; agent_current_position(oscar,P), find_nearest_charging(P, CCost, [CRHead|CR],Ch) ->
+
 % Xs is a list of unique actors that have the link L on their page.
 list_actors_with_link(L,Xs):-
   findall(A,(actor(A),wp(A,WT),wt_link(WT,L)),As),
