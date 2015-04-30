@@ -205,17 +205,6 @@ find_identity_loop(OV,Actors,Identity,QCost):-
 		guesstimate(Actors,Identity)
 	).
 
-	%agent_current_energy(oscar,E),
-	%( find_nearest_oracle(OV,QCost,cost(Cost),[ORHead|OR],Oracle) ->
-%		( find_nearest_charging(ORHead, CCost, [CRHead|CR],Ch) ->
-%			reverse([ORHead|OR],[_Init|Path]),
-%			agent_do_moves(oscar,Path),
-%			agent_ask_oracle(oscar,o(Oracle),link,L),
-%			list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
-%			intersection(Xs,Actors,Lst),!,
-%			find_identity_loop([Oracle|OV],Lst,Identity,QCost)
-%		; agent_current_position(oscar,P), find_nearest_charging(P, CCost, [CRHead|CR],Ch) ->
-
 % Xs is a list of unique actors that have the link L on their page.
 list_actors_with_link(L,Xs):-
   findall(A,(actor(A),wp(A,WT),wt_link(WT,L)),As),
