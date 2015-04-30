@@ -166,23 +166,62 @@ random_link(A,L):-
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
 % Instantiates the full list of actors and then calls the loop query to repeatedly trim the list until only one actor remains
 find_identity(A):-
-  findall(Ac,actor(Ac),Lst),
-	find_identity_loop(A,Lst).
-
-% Repeatedly asks for a new link L, finds all actors that have that link, and intersects that list of actors with the current actor list
-% So that any actor that does not have L is removed from As
-% When the list of actors is reduced to just a single actor, then that is the identity and stop searching.
-find_identity_loop(I,[I]):- !.
-find_identity_loop(I,As):-
-  agent_ask_oracle(oscar,o(1),link,L),
-  list_actors_with_link(L,Xs),
-  intersection(Xs,As,Lst),
-  find_identity_loop(I,Lst).
-
+	agent_current_energy(oscar,E),
+	QCost is E/10,
+	findall(Ac,actor(Ac),Lst),
+	find_identity_loop([],Lst,A,QCost),!.
+	
+find_identity_loop(_OV,[Identity],Identity,_QCost):- !.
+find_identity_loop(OV,Actors,Identity,QCost):-
+	agent_current_energy(oscar,E),
+	( find_oracle_charging(OV,QCost,cost(Cost),R,Oracle,_Ch), Cost =< E ->
+		reverse(R,[_Init|Path]),
+		agent_do_moves(oscar,Path),
+		agent_ask_oracle(oscar,o(Oracle),link,L),
+		list_actors_with_link(L,Xs),
+		intersection(Xs,Actors,Lst),!,
+		find_identity_loop([Oracle|OV],Lst,Identity,QCost)
+	; find_nearest_oracle(OV,QCost,cost(Cost),R,Oracle), Cost =< E ->
+		( agent_current_position(oscar,P), find_nearest_charging(P,cost(CharCost),CharR,Ch), CharCost =< E ->
+			reverse(CharR,[_Init|Path]),
+			agent_do_moves(oscar,Path),
+			agent_topup_energy(oscar,c(Ch)),!,
+			find_identity_loop(OV,Actors,Identity,QCost)
+		; otherwise ->
+			reverse(R,[_Init|Path]),
+			agent_do_moves(oscar,Path),
+			agent_ask_oracle(oscar,o(Oracle),link,L),
+			list_actors_with_link(L,Xs),
+			intersection(Xs,Actors,Lst),!,
+			find_identity_loop([Oracle|OV],Lst,Identity,QCost)
+		)
+	; otherwise -> 
+		!,
+		guesstimate(Actors,Identity)
+	).
+	
 % Xs is a list of unique actors that have the link L on their page.
 list_actors_with_link(L,Xs):-
   findall(A,(actor(A),wp(A,WT),wt_link(WT,L)),As),
   sort(As,Xs).
+  
+guesstimate([A|Actors],Identity):-
+	findall(L,(link(L),actor(A),wp(A,WT),wt_link(WT,L)),Links),
+	sort(Links,UniqueLinks),
+	length(UniqueLinks,Len),
+	guesstimate_loop(Actors,Identity,A,Len).
+	
+guesstimate_loop([],Identity,Identity,_).
+guesstimate_loop([A|Actors],Identity,BestGuess,BestLength):-
+	findall(L,(link(L),actor(A),wp(A,WT),wt_link(WT,L)),Links),
+	sort(Links,UniqueLinks),
+	length(UniqueLinks,Len),
+	( Len < BestLength ->
+		guesstimate_loop(Actors,Identity,A,Len)
+	; otherwise ->
+		guesstimate_loop(Actors,Identity,BestGuess,BestLength)
+	).
+	
 
 
 %%% Testing

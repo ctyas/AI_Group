@@ -151,7 +151,7 @@ ailp_reset :-
 	assert(ailp_internal(agent_position(oscar, p(X0,Y0)))),
 	internal_topup(Emax),
 	assert(ailp_internal(agent_energy(oscar, Emax))),
-	init_things(oracle,N/2),
+	init_things(oracle,2),
 	init_things(charging_station,N/10),
 	init_things(thing,N*N/4),
 	init_identity,	% defined in wp.pl

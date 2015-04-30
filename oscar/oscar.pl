@@ -4,8 +4,65 @@
  *		Students edit this program to complete the assignment.
  */
 
-consult(wp).
+:-consult(wp).
 candidate_number(17655).
+
+find_task(Task,Cost,RHead):-
+	agent_current_position(oscar,P),
+	breadth_first(Task,[[c(0,P),P]],[],[P],[RHead|R],[Cost,Depth],_NewPos),!.	% prune choice point for efficiency
+
+find_nearest_oracle(OraclesVisited,QCost,cost(Cost),R,Oracle):-
+	agent_current_position(oscar,P),
+	breadth_first_nearest_oracle(OraclesVisited,[[c(0,P),P]],[],[P],R,[cost(Cost1),Depth],_NewPos,Oracle),!,
+	Cost is Cost1 + QCost.
+	
+find_oracle_charging(OraclesVisited,QCost,cost(Cost),[RHead|R],Oracle,Charging):-
+	find_nearest_oracle(OraclesVisited,QCost,cost(Cost1),[RHead|R],Oracle),
+	find_nearest_charging(RHead,cost(Cost2),CR,Charging),
+	Cost is Cost1 + Cost2.
+
+find_nearest_charging(P,Cost,R,Charging):-
+	breadth_first_nearest_charging([[c(0,P),P]],[],[P],R,[Cost,Depth],_NewPos,Charging),!.
+	
+breadth_first_nearest_oracle(OV,[H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos,Oracle) :-
+	achieved_nearest_oracle(OV, H, RPath, Cost, NewPos, Oracle).
+breadth_first_nearest_oracle(OV, [], [], Visited, RPath, Cost, NewPos, Oracle) :-
+	!,
+	false.
+breadth_first_nearest_oracle(OV,[], Lst2, Visited, RPath, Cost, NewPos,Oracle) :-
+	breadth_first_nearest_oracle(OV,Lst2, [], Visited, RPath, Cost, NewPos,Oracle).
+breadth_first_nearest_oracle(OV,[Current|Lst1], Lst2, Visited, RR, Cost, NewPos,Oracle) :-
+	Current = [c(F,Pos)|RPath],
+	(  setof([R,C], (search(Pos,R,R,C), \+ memberchk(R, Visited)), Adjs) ->
+		appendAll(Lst2, Adjs, Current, Visited, NewLst2, NewVisited)
+	;	appendAll(Lst2, [], Current, Visited, NewLst2, NewVisited)
+	),
+	breadth_first_nearest_oracle(OV,Lst1, NewLst2, NewVisited, RR, Cost, NewPos,Oracle).
+	
+achieved_nearest_oracle(OraclesVisited,Current,RPath,Cost,NewPos,N) :-
+	Current = [c(Cost,NewPos)|RPath],
+	RPath = [Last|_],map_adjacent(Last,_,o(N)),
+	\+ member(N,OraclesVisited).
+	
+	
+breadth_first_nearest_charging([H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos,Charging) :-
+	achieved_nearest_charging(H, RPath, Cost, NewPos, Charging).
+breadth_first_nearest_charging([], [], Visited, RPath, Cost, NewPos, Charging) :-
+	!,
+	false.
+breadth_first_nearest_charging([], Lst2, Visited, RPath, Cost, NewPos,Charging) :-
+	breadth_first_nearest_charging(Lst2, [], Visited, RPath, Cost, NewPos,Charging).
+breadth_first_nearest_charging([Current|Lst1], Lst2, Visited, RR, Cost, NewPos,Charging) :-
+	Current = [c(F,Pos)|RPath],
+	(  setof([R,C], (search(Pos,R,R,C), \+ memberchk(R, Visited)), Adjs) ->
+		appendAll(Lst2, Adjs, Current, Visited, NewLst2, NewVisited)
+	;	appendAll(Lst2, [], Current, Visited, NewLst2, NewVisited)
+	),
+	breadth_first_nearest_charging(Lst1, NewLst2, NewVisited, RR, Cost, NewPos,Charging).
+	
+achieved_nearest_charging(Current,RPath,Cost,NewPos,N) :-
+	Current = [c(Cost,NewPos)|RPath],
+	RPath = [Last|_],map_adjacent(Last,_,c(N)).
 
 solve_task(Task,Cost):-
 	agent_current_position(oscar,P),
@@ -28,6 +85,9 @@ solve_task_bt(Task,Current,D,RR,Cost,NewPos) :-
 % [c(Cost, Point, PrevPointInPath)
 breadth_first(Task, [H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos) :-
 	achieved(Task, H, RPath, Cost, NewPos).
+breadth_first(Task, [], [], Visited, RPath, Cost, NewPos) :-
+	!,
+	false.
 breadth_first(Task, [], Lst2, Visited, RPath, Cost, NewPos) :-
 	breadth_first(Task, Lst2, [], Visited, RPath, Cost, NewPos).
 breadth_first(Task, [Current|Lst1], Lst2, Visited, RR, Cost, NewPos) :-
