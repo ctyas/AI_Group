@@ -136,7 +136,7 @@ actor('William H. Macy').
 link('Barack Obama').
 link('Barton Fink').
 link('Coen brothers').
-link('Golden Globe Award for Best Supporting Actor â€“ Motion Picture').
+link('Golden Globe Award for Best Supporting Actor – Motion Picture').
 link('Hollywood Walk of Fame').
 link('Inside the Actors Studio').
 %link('Manhattan').
@@ -164,43 +164,58 @@ random_link(A,L):-
 %%% Your solution goes here
 
 % find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
+% find_identity(-A) <- find hidden identity by repeatedly calling agent_ask_oracle(oscar,o(1),link,L)
 % Instantiates the full list of actors and then calls the loop query to repeatedly trim the list until only one actor remains
 find_identity(A):-
-	agent_current_energy(oscar,E),
+	my_agent(AgentID),
+	query_world(agent_current_energy,[AgentID,E]),
 	QCost is ceiling(E/10),	% Get the energy required to query an oracle
 	findall(Ac,actor(Ac),Lst),
-	find_identity_new_loop([],Lst,A,QCost,E),!.
+	find_identity_new_loop([],Lst,A,QCost,E,AgentID),!.
 
-find_identity_new_loop(_OV,[Identity],Identity,_QCost,_EMax):- !.
-find_identity_new_loop(OV,Actors,Identity,QCost,EMax):-
-	agent_current_energy(oscar,E),
+find_identity_new_loop(_OV,[Identity],Identity,_QCost,_EMax,_AgentID):- !.
+find_identity_new_loop(OV,Actors,Identity,QCost,EMax,AgentID):-
+	query_world(agent_current_energy,[AgentID,E]),
 	( find_nearest_oracle(OV,QCost,cost(OCost),[ORHead|OR],Oracle) ->
 		( find_nearest_charging(ORHead, cost(CCost), CharR, Ch), (OCost + CCost) =< E ->
 			reverse([ORHead|OR],[_Init|Path]),
-			agent_do_moves(oscar,Path),
-			agent_ask_oracle(oscar,o(Oracle),link,L),
-			list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
-			intersection(Xs,Actors,Lst),!,
-			find_identity_new_loop([Oracle|OV],Lst,Identity,QCost,EMax)
-		; agent_current_position(oscar,P), find_nearest_charging(P,cost(CCost),CharR,Ch), CCost =< E, E < EMax ->
+			( query_world(agent_do_moves,[AgentID,Path]), 
+			query_world(agent_ask_oracle,[AgentID,o(Oracle),link,L]) ->
+				list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
+				intersection(Xs,Actors,Lst),!,
+				find_identity_new_loop([Oracle|OV],Lst,Identity,QCost,EMax,AgentID)
+			; otherwise ->
+				!,
+				find_identity_new_loop(OV,Actors,Identity,QCost,EMax,AgentID)
+			)
+		; query_world(agent_current_position,[AgentID,P]), find_nearest_charging(P,cost(CCost),CharR,Ch), CCost =< E, E < EMax ->
 			reverse(CharR,[_Init|Path]),
-			agent_do_moves(oscar,Path),
-			agent_topup_energy(oscar,c(Ch)),!,
-			find_identity_new_loop(OV,Actors,Identity,QCost,EMax)
+			( query_world(agent_do_moves,[AgentID,Path]),
+			query_world(agent_topup_energy,[AgentID,c(Ch)]) ->
+				!,
+				find_identity_new_loop(OV,Actors,Identity,QCost,EMax,AgentID)
+			; otherwise ->
+				!,
+				find_identity_new_loop(OV,Actors,Identity,QCost,EMax,AgentID)
+			)
 		; OCost < E ->
 			reverse([ORHead|OR],[_Init|Path]),
-			agent_do_moves(oscar,Path),
-			agent_ask_oracle(oscar,o(Oracle),link,L),
-			list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
-			intersection(Xs,Actors,Lst),!,
-			find_identity_new_loop([Oracle|OV],Lst,Identity,QCost,EMax)
+			( query_world(agent_do_moves,[AgentID,Path]), 
+			query_world(agent_ask_oracle,[AgentID,o(Oracle),link,L]) ->
+				list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
+				intersection(Xs,Actors,Lst),!,
+				find_identity_new_loop([Oracle|OV],Lst,Identity,QCost,EMax,AgentID)
+			; otherwise ->
+				!,
+				find_identity_new_loop(OV,Actors,Identity,QCost,EMax,AgentID)
+			)
 		),!
 	% If no more oracles can be accessed, make a guess
 	; otherwise -> 
 		!,
 		guesstimate(Actors,Identity)
 	).
-
+	
 % Xs is a list of unique actors that have the link L on their page.
 list_actors_with_link(L,Xs):-
   findall(A,(actor(A),wp(A,WT),wt_link(WT,L)),As),
@@ -224,7 +239,6 @@ guesstimate_loop([A|Actors],Identity,BestGuess,BestLength):-
 	; otherwise ->
 		guesstimate_loop(Actors,Identity,BestGuess,BestLength)
 	).
-	
 
 
 %%% Testing
@@ -255,3 +269,22 @@ test:-
 test.
 
 %% repeated from oscar_library.pl for testing purposes %%
+
+% agent_ask_oracle(+Agent, +OID, +Question, -Answer)
+% Agent's position needs to be map_adjacent to oracle identified by OID
+%% Test query to be used: :-agent_ask_oracle(oscar,o(1),link,L). %%
+agent_ask_oracle(Agent, OID, Question, Answer) :-
+	nonvar(Agent),
+	nonvar(OID),
+	nonvar(Question),
+	var(Answer),
+	%agent_current_position(Agent,Pos),	% ignore agent position for testing
+	%map_adjacent(Pos, AdjPos, OID),	% ignore agent position for testing
+	OID = o(_),
+	internal_object(OID, _AdjPos, Options),
+	member(question(Q)/answer(A),Options),
+	( Question=Q -> Answer=A ; Answer='I do not know' ).
+
+internal_object(o(1),p(5,3),[question(link)/answer(Link)]):-
+	ailp_identity(A),
+	random_link(A,Link).

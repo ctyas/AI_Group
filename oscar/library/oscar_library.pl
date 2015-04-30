@@ -151,7 +151,7 @@ ailp_reset :-
 	assert(ailp_internal(agent_position(oscar, p(X0,Y0)))),
 	internal_topup(Emax),
 	assert(ailp_internal(agent_energy(oscar, Emax))),
-	init_things(oracle,2),
+	init_things(oracle,N/2),
 	init_things(charging_station,N/10),
 	init_things(thing,N*N/4),
 	init_identity,	% defined in wp.pl
@@ -254,4 +254,3 @@ internal_number2pos(Z,N,p(X,Y)):-
 	Z2 is (Z-Z1)/K,
 	X is mod(Z1,N) + 1,
 	Y is mod(Z2,N) + 1.
-
