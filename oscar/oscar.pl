@@ -9,95 +9,69 @@ candidate_number(17655).
 
 find_task(Task,Cost,RHead):-
 	agent_current_position(oscar,P),
-	breadth_first(Task,[[c(0,P),P]],[],[P],[RHead|R],[Cost,Depth],_NewPos),!.	% prune choice point for efficiency
+	breadth_first(Task,[[c(0,P),P]],[],[P],[RHead|_R],[Cost,_Depth],_NewPos),!.	% prune choice point for efficiency
 
+% Finds the nearest oracle not yet queried, returning the Cost of movement and query, and the id of the oracle
 find_nearest_oracle(OraclesVisited,QCost,cost(Cost),R,Oracle):-
 	agent_current_position(oscar,P),
-	breadth_first_nearest_oracle(OraclesVisited,[[c(0,P),P]],[],[P],R,[cost(Cost1),Depth],_NewPos,Oracle),!,
+	breadth_first_nearest_oracle(OraclesVisited,[[c(0,P),P]],[],[P],R,[cost(Cost1),_Depth],_NewPos,Oracle),!,
 	Cost is Cost1 + QCost.
-	
+
+% Finds the nearest oracle that will leave enough energy to also reach a charging station afterwards
 find_oracle_charging(OraclesVisited,QCost,cost(Cost),[RHead|R],Oracle,Charging):-
 	find_nearest_oracle(OraclesVisited,QCost,cost(Cost1),[RHead|R],Oracle),
-	find_nearest_charging(RHead,cost(Cost2),CR,Charging),
+	find_nearest_charging(RHead,cost(Cost2),_CR,Charging),	% Look for nearest charging station to the oracle
 	Cost is Cost1 + Cost2.
 
+% Finds the nearest charging station to position P, returning the cost and id of the charging station
 find_nearest_charging(P,Cost,R,Charging):-
-	breadth_first_nearest_charging([[c(0,P),P]],[],[P],R,[Cost,Depth],_NewPos,Charging),!.
+	breadth_first_nearest_charging([[c(0,P),P]],[],[P],R,[Cost,_Depth],_NewPos,Charging),!.
 	
-breadth_first_nearest_oracle(OV,[H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos,Oracle) :-
+% Performs breadth first search to find the nearest oracle
+breadth_first_nearest_oracle(OV,[H|_Lst1], _Lst2, _Visited, RPath, [cost(Cost), depth(Cost)], NewPos,Oracle) :-
 	achieved_nearest_oracle(OV, H, RPath, Cost, NewPos, Oracle).
-breadth_first_nearest_oracle(OV, [], [], Visited, RPath, Cost, NewPos, Oracle) :-
+breadth_first_nearest_oracle(_OV, [], [], _Visited, _RPath, _Cost, _NewPos, _Oracle) :-
 	!,
 	false.
 breadth_first_nearest_oracle(OV,[], Lst2, Visited, RPath, Cost, NewPos,Oracle) :-
 	breadth_first_nearest_oracle(OV,Lst2, [], Visited, RPath, Cost, NewPos,Oracle).
 breadth_first_nearest_oracle(OV,[Current|Lst1], Lst2, Visited, RR, Cost, NewPos,Oracle) :-
-	Current = [c(F,Pos)|RPath],
+	Current = [c(_F,Pos)|_RPath],
 	(  setof([R,C], (search(Pos,R,R,C), \+ memberchk(R, Visited)), Adjs) ->
 		appendAll(Lst2, Adjs, Current, Visited, NewLst2, NewVisited)
 	;	appendAll(Lst2, [], Current, Visited, NewLst2, NewVisited)
 	),
 	breadth_first_nearest_oracle(OV,Lst1, NewLst2, NewVisited, RR, Cost, NewPos,Oracle).
-	
+
+% Returns true if adjacent to any oracle that has not been visited, returning the id of that oracle	
 achieved_nearest_oracle(OraclesVisited,Current,RPath,Cost,NewPos,N) :-
 	Current = [c(Cost,NewPos)|RPath],
 	RPath = [Last|_],map_adjacent(Last,_,o(N)),
 	\+ member(N,OraclesVisited).
 	
-	
-breadth_first_nearest_charging([H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos,Charging) :-
+% Performs breadth first search for the nearest charging station	
+breadth_first_nearest_charging([H|_Lst1], _Lst2, _Visited, RPath, [cost(Cost), depth(Cost)], NewPos,Charging) :-
 	achieved_nearest_charging(H, RPath, Cost, NewPos, Charging).
-breadth_first_nearest_charging([], [], Visited, RPath, Cost, NewPos, Charging) :-
+breadth_first_nearest_charging([], [], _Visited, _RPath, _Cost, _NewPos, _Charging) :-
 	!,
 	false.
 breadth_first_nearest_charging([], Lst2, Visited, RPath, Cost, NewPos,Charging) :-
 	breadth_first_nearest_charging(Lst2, [], Visited, RPath, Cost, NewPos,Charging).
 breadth_first_nearest_charging([Current|Lst1], Lst2, Visited, RR, Cost, NewPos,Charging) :-
-	Current = [c(F,Pos)|RPath],
+	Current = [c(_F,Pos)|_RPath],
 	(  setof([R,C], (search(Pos,R,R,C), \+ memberchk(R, Visited)), Adjs) ->
 		appendAll(Lst2, Adjs, Current, Visited, NewLst2, NewVisited)
 	;	appendAll(Lst2, [], Current, Visited, NewLst2, NewVisited)
 	),
 	breadth_first_nearest_charging(Lst1, NewLst2, NewVisited, RR, Cost, NewPos,Charging).
-	
+
+% Returns true if position is adjacent to a charging station
 achieved_nearest_charging(Current,RPath,Cost,NewPos,N) :-
 	Current = [c(Cost,NewPos)|RPath],
 	RPath = [Last|_],map_adjacent(Last,_,c(N)).
 
-solve_task(Task,Cost):-
-	agent_current_position(oscar,P),
-	writeln(P),
-	breadth_first(Task,[[c(0,P),P]],[],[P],R,Cost,_NewPos),!,	% prune choice point for efficiency
-	reverse(R,[_Init|Path]),
-	agent_do_moves(oscar,Path).
-
-%% backtracking depth-first search, needs to be changed to agenda-based A*
-solve_task_bt(Task,Current,Depth,RPath,[cost(Cost),depth(Depth)],NewPos) :- 
-	achieved(Task,Current,RPath,Cost,NewPos).
-solve_task_bt(Task,Current,D,RR,Cost,NewPos) :-
-	Current = [c(F,P)|RPath],
-	search(P,P1,R,C),
-	\+ memberchk(R,RPath), % check we have not been here already
-	D1 is D+1,
-	F1 is F+C,
-	solve_task_bt(Task,[c(F1,P1),R|RPath],D1,RR,Cost,NewPos). % backtracking search
-% List of points, with their associated min costs and it's path
-% [c(Cost, Point, PrevPointInPath)
-breadth_first(Task, [H|Lst1], Lst2, Visited, RPath, [cost(Cost), depth(Cost)], NewPos) :-
-	achieved(Task, H, RPath, Cost, NewPos).
-breadth_first(Task, [], [], Visited, RPath, Cost, NewPos) :-
-	!,
-	false.
-breadth_first(Task, [], Lst2, Visited, RPath, Cost, NewPos) :-
-	breadth_first(Task, Lst2, [], Visited, RPath, Cost, NewPos).
-breadth_first(Task, [Current|Lst1], Lst2, Visited, RR, Cost, NewPos) :-
-	Current = [c(F,Pos)|RPath],
-	(  setof([R,C], (search(Pos,R,R,C), \+ memberchk(R, Visited)), Adjs) ->
-		appendAll(Lst2, Adjs, Current, Visited, NewLst2, NewVisited)
-	;	appendAll(Lst2, [], Current, Visited, NewLst2, NewVisited)
-	),
-	breadth_first(Task, Lst1, NewLst2, NewVisited, RR, Cost, NewPos).
-appendAll(Lst, [], Current, Visited, Lst, Visited).
+% Appends the entirety of a list to another list.
+appendAll(Lst, [], _Current, Visited, Lst, Visited).
 appendAll(Lst, [A|Adjs], Current, Visited, NewLst, NewVisited) :-
 	Current = [c(F,_)|RPath],
 	A = [Point, C],

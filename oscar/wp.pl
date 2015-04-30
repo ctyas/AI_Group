@@ -167,21 +167,26 @@ random_link(A,L):-
 % Instantiates the full list of actors and then calls the loop query to repeatedly trim the list until only one actor remains
 find_identity(A):-
 	agent_current_energy(oscar,E),
-	QCost is E/10,
+	QCost is E/10,	% Get the energy required to query an oracle
 	findall(Ac,actor(Ac),Lst),
 	find_identity_loop([],Lst,A,QCost),!.
-	
+
+% Loops through until the identity is found or there's no reachable oracles left
 find_identity_loop(_OV,[Identity],Identity,_QCost):- !.
 find_identity_loop(OV,Actors,Identity,QCost):-
 	agent_current_energy(oscar,E),
-	( find_oracle_charging(OV,QCost,cost(Cost),R,Oracle,_Ch), Cost =< E ->
+	( % See if there is an oracle that we can reach and still have energy to charge
+	find_oracle_charging(OV,QCost,cost(Cost),R,Oracle,_Ch), Cost =< E ->
 		reverse(R,[_Init|Path]),
 		agent_do_moves(oscar,Path),
 		agent_ask_oracle(oscar,o(Oracle),link,L),
-		list_actors_with_link(L,Xs),
+		list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
 		intersection(Xs,Actors,Lst),!,
 		find_identity_loop([Oracle|OV],Lst,Identity,QCost)
+	% If there is oracle->charge combo, see if any accessible oracles exist
 	; find_nearest_oracle(OV,QCost,cost(Cost),R,Oracle), Cost =< E ->
+		% If they do, then try to go to a charging station first so we don't run out of energy.
+		% If we can't reach a charging station, just attempt to get as many links as possible before running out of energy
 		( agent_current_position(oscar,P), find_nearest_charging(P,cost(CharCost),CharR,Ch), CharCost =< E ->
 			reverse(CharR,[_Init|Path]),
 			agent_do_moves(oscar,Path),
@@ -195,6 +200,7 @@ find_identity_loop(OV,Actors,Identity,QCost):-
 			intersection(Xs,Actors,Lst),!,
 			find_identity_loop([Oracle|OV],Lst,Identity,QCost)
 		)
+	% If no more oracles can be accessed, make a guess
 	; otherwise -> 
 		!,
 		guesstimate(Actors,Identity)
@@ -206,16 +212,18 @@ list_actors_with_link(L,Xs):-
   sort(As,Xs).
   
 guesstimate([A|Actors],Identity):-
+	writes('Cannot determine actor from links - making best guess'),
 	findall(L,(link(L),actor(A),wp(A,WT),wt_link(WT,L)),Links),
 	sort(Links,UniqueLinks),
 	length(UniqueLinks,Len),
 	guesstimate_loop(Actors,Identity,A,Len).
-	
+
+% Loop through all the current actors, keeping the actor with the least number of unique links
 guesstimate_loop([],Identity,Identity,_).
 guesstimate_loop([A|Actors],Identity,BestGuess,BestLength):-
 	findall(L,(link(L),actor(A),wp(A,WT),wt_link(WT,L)),Links),
 	sort(Links,UniqueLinks),
-	length(UniqueLinks,Len),
+	length(UniqueLinks,Len), % Get the number of unique links for the actor
 	( Len < BestLength ->
 		guesstimate_loop(Actors,Identity,A,Len)
 	; otherwise ->
