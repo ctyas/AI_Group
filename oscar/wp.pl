@@ -169,8 +169,38 @@ find_identity(A):-
 	agent_current_energy(oscar,E),
 	QCost is E/10,	% Get the energy required to query an oracle
 	findall(Ac,actor(Ac),Lst),
-	find_identity_loop([],Lst,A,QCost),!.
+	find_identity_new_loop([],Lst,A,QCost),!.
 
+find_identity_new_loop(_OV,[Identity],Identity,_QCost):- !.
+find_identity_new_loop(OV,Actors,Identity,QCost):-
+	agent_current_energy(oscar,E),
+	( find_nearest_oracle(OV,QCost,cost(OCost),[ORHead|OR],Oracle) ->
+		( find_nearest_charging(ORHead, cost(CCost), CharR, Ch), (OCost + CCost) =< E ->
+			reverse([ORHead|OR],[_Init|Path]),
+			agent_do_moves(oscar,Path),
+			agent_ask_oracle(oscar,o(Oracle),link,L),
+			list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
+			intersection(Xs,Actors,Lst),!,
+			find_identity_new_loop([Oracle|OV],Lst,Identity,QCost)
+		; agent_current_position(oscar,P), find_nearest_charging(P,cost(CCost),CharR,Ch), CCost =< E ->
+			reverse(CharR,[_Init|Path]),
+			agent_do_moves(oscar,Path),
+			agent_topup_energy(oscar,c(Ch)),!,
+			find_identity_new_loop(OV,Actors,Identity,QCost)
+		; OCost =< E ->
+			reverse([ORHead|OR],[_Init|Path]),
+			agent_do_moves(oscar,Path),
+			agent_ask_oracle(oscar,o(Oracle),link,L),
+			list_actors_with_link(L,Xs), % Get all the actors that have the link, and intersect it with our current list of actors
+			intersection(Xs,Actors,Lst),!,
+			find_identity_new_loop([Oracle|OV],Lst,Identity,QCost)
+		)
+	% If no more oracles can be accessed, make a guess
+	; otherwise -> 
+		!,
+		guesstimate(Actors,Identity)
+	).
+	
 % Loops through until the identity is found or there's no reachable oracles left
 find_identity_loop(_OV,[Identity],Identity,_QCost):- !.
 find_identity_loop(OV,Actors,Identity,QCost):-
